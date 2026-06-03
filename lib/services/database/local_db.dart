@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../models/category.dart';
 import '../../models/user.dart';
+import '../../models/transaction.dart';
 import '../../utils/constants.dart';
 
 class LocalDb {
@@ -304,5 +305,174 @@ class LocalDb {
       whereArgs: [userId],
     );
     return List.generate(maps.length, (i) => CategoryModel.fromMap(maps[i]));
+  }
+
+  /// Verifies if category exists, returning category ID. If not found, defaults to 'other' category ID.
+  Future<int?> verifyCategoryExists(int userId, String categoryName) async {
+    final db = await database;
+    
+    // Check case-insensitive match for type or name
+    final List<Map<String, dynamic>> results = await db.query(
+      'categories',
+      columns: ['category_id'],
+      where: 'user_id = ? AND (LOWER(category_name) = ? OR LOWER(category_type) = ?) AND deleted_at IS NULL',
+      whereArgs: [userId, categoryName.toLowerCase(), categoryName.toLowerCase()],
+      limit: 1,
+    );
+
+    if (results.isNotEmpty) {
+      return results.first['category_id'] as int;
+    }
+
+    // Fallback: look for "other" category for this user
+    final List<Map<String, dynamic>> fallbackResults = await db.query(
+      'categories',
+      columns: ['category_id'],
+      where: 'user_id = ? AND category_type = ? AND deleted_at IS NULL',
+      whereArgs: [userId, 'other'],
+      limit: 1,
+    );
+
+    if (fallbackResults.isNotEmpty) {
+      return fallbackResults.first['category_id'] as int;
+    }
+
+    return null;
+  }
+
+  /// Inserts a transaction into the DB.
+  Future<int> insertTransaction(TransactionModel transaction) async {
+    final db = await database;
+    return await db.insert('transactions', transaction.toMap());
+  }
+
+  /// Fetches total monthly expense for a user.
+  Future<int> getMonthlyExpense(int userId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT SUM(amount_idr) as total 
+      FROM transactions 
+      WHERE user_id = ? 
+        AND transaction_type = 'expense' 
+        AND deleted_at IS NULL
+        AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch')) = strftime('%Y-%m', 'now')
+    ''', [userId]);
+    
+    if (results.isEmpty || results.first['total'] == null) return 0;
+    return results.first['total'] as int;
+  }
+
+  /// Fetches recent transactions for a user.
+  Future<List<Map<String, dynamic>>> getRecentTransactions(int userId, {int limit = 5}) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT t.*, c.category_name 
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.category_id
+      WHERE t.user_id = ? AND t.deleted_at IS NULL
+      ORDER BY t.transaction_date DESC
+      LIMIT ?
+    ''', [userId, limit]);
+  }
+
+  /// Fetches active budgets for a user.
+  Future<List<Map<String, dynamic>>> getActiveBudgets(int userId) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT b.*, c.category_name 
+      FROM budgets b
+      LEFT JOIN categories c ON b.category_id = c.category_id
+      WHERE b.user_id = ? AND b.is_active = 1
+    ''', [userId]);
+  }
+
+  /// Fetches a transaction by ID joined with its category info.
+  Future<Map<String, dynamic>?> getTransactionWithCategory(int transactionId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT t.*, c.category_name, c.color_hex, c.icon_name
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.category_id
+      WHERE t.transaction_id = ? AND t.deleted_at IS NULL
+    ''', [transactionId]);
+    if (results.isEmpty) return null;
+    return results.first;
+  }
+
+  /// Fetches monthly summary (income vs expense) for a user for a specific month (format: 'YYYY-MM').
+  Future<Map<String, int>> getMonthlySummary(int userId, String monthStr) async {
+    final db = await database;
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT 
+        COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount_idr ELSE 0 END), 0) as total_income,
+        COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount_idr ELSE 0 END), 0) as total_expense
+      FROM transactions
+      WHERE user_id = ? 
+        AND deleted_at IS NULL
+        AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch')) = ?
+    ''', [userId, monthStr]);
+
+    if (results.isEmpty) return {'income': 0, 'expense': 0};
+    final row = results.first;
+    return {
+      'income': row['total_income'] as int? ?? 0,
+      'expense': row['total_expense'] as int? ?? 0,
+    };
+  }
+
+  /// Fetches category spending breakdown for a user for a specific month (format: 'YYYY-MM').
+  Future<List<Map<String, dynamic>>> getCategoryBreakdown(int userId, String monthStr) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT 
+        c.category_id,
+        c.category_name,
+        c.color_hex,
+        c.icon_name,
+        SUM(t.amount_idr) as total_amount,
+        ROUND(100.0 * SUM(t.amount_idr) / (
+          SELECT COALESCE(SUM(amount_idr), 1) 
+          FROM transactions 
+          WHERE user_id = ? AND transaction_type = 'expense' AND deleted_at IS NULL 
+            AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch')) = ?
+        ), 1) as percentage
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.category_id
+      WHERE t.user_id = ? 
+        AND t.transaction_type = 'expense'
+        AND t.deleted_at IS NULL
+        AND strftime('%Y-%m', datetime(t.transaction_date / 1000, 'unixepoch')) = ?
+      GROUP BY c.category_id, c.category_name, c.color_hex, c.icon_name
+      ORDER BY total_amount DESC
+    ''', [userId, monthStr, userId, monthStr]);
+  }
+
+  /// Fetches transactions for a user for a specific month (format: 'YYYY-MM') with pagination limits.
+  Future<List<Map<String, dynamic>>> getTransactionsForMonth(
+    int userId, 
+    String monthStr, {
+    int limit = 10, 
+    int offset = 0,
+  }) async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT 
+        t.transaction_id,
+        t.category_id,
+        c.category_name,
+        c.color_hex,
+        c.icon_name,
+        t.description,
+        t.amount_idr,
+        t.transaction_date,
+        t.is_synced_to_cloud
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.category_id
+      WHERE t.user_id = ? 
+        AND t.deleted_at IS NULL
+        AND strftime('%Y-%m', datetime(t.transaction_date / 1000, 'unixepoch')) = ?
+      ORDER BY t.transaction_date DESC
+      LIMIT ? OFFSET ?
+    ''', [userId, monthStr, limit, offset]);
   }
 }
