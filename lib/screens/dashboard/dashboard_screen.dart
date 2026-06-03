@@ -8,31 +8,115 @@ import '../../providers/onboarding_provider.dart';
 import '../../screens/onboarding/onboarding_screen.dart';
 import '../../services/database/local_db.dart';
 import '../../widgets/common/mr_oyen_avatar.dart';
+import '../chat/chat_screen.dart';
+import '../../providers/dashboard_provider.dart';
+import 'widgets/summary_cards.dart';
+import 'widgets/expense_chart.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  int _currentIndex = 0;
+
+  final List<Widget> _tabs = [
+    const _DashboardTab(),
+    const ChatScreen(),
+    const _HistoryTab(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _tabs,
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            )
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.neutral500,
+          backgroundColor: AppColors.neutral0,
+          type: BottomNavigationBarType.fixed,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined),
+              activeIcon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline),
+              activeIcon: Icon(Icons.chat_bubble),
+              label: 'Mr. Oyen',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history_outlined),
+              activeIcon: Icon(Icons.history),
+              label: 'Riwayat',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// Tab 1: Dashboard (Original Category List layout)
+// ---------------------------------------------------------
+class _DashboardTab extends ConsumerWidget {
+  const _DashboardTab();
+
+  String _getMonthName(DateTime dt) {
+    final months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return '${months[dt.month - 1]} ${dt.year}';
+  }
 
   Future<void> _resetOnboarding(BuildContext context, WidgetRef ref) async {
     final db = LocalDb.instance;
     final user = await db.getUser();
     if (user != null) {
-      // Clear DB tables
       final database = await db.database;
+      await database.delete('chat_messages');
+      await database.delete('chat_sessions');
+      await database.delete('transactions');
       await database.delete('categories');
       await database.delete('user_preferences');
       await database.delete('users');
-      
-      // Clear SharedPreferences
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('device_id');
-      
-      // Reset provider state
+
       ref.invalidate(onboardingProvider);
       ref.invalidate(categoryProvider);
+      ref.invalidate(dashboardProvider);
 
       if (!context.mounted) return;
 
-      // Navigate back to onboarding
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const OnboardingScreen()),
         (route) => false,
@@ -43,7 +127,12 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final categoriesAsync = ref.watch(categoryProvider);
+    final dashboardState = ref.watch(dashboardProvider);
+    final notifier = ref.read(dashboardProvider.notifier);
+
+    final now = DateTime.now();
+    final isCurrentMonth = dashboardState.selectedMonth.year == now.year &&
+        dashboardState.selectedMonth.month == now.month;
 
     return Scaffold(
       backgroundColor: AppColors.neutral50,
@@ -63,121 +152,326 @@ class DashboardScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: AppSpacing.space4),
-              // Mascot greeting
-              Card(
-                color: AppColors.neutral0,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.space4),
-                  child: Row(
+        child: RefreshIndicator(
+          onRefresh: () => notifier.loadDashboard(),
+          child: dashboardState.isLoading && dashboardState.recentTransactions.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const MrOyenAvatar(size: 64),
-                      const SizedBox(width: AppSpacing.space4),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Mr. Oyen says:',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.neutral500,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Meow! Onboarding complete! Ready to start tracking your money or do you want to keep overspending? 😼',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.neutral900,
-                              ),
-                            ),
-                          ],
-                        ),
+                      // Month navigation selector
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left, color: AppColors.primary),
+                            onPressed: () => notifier.changeMonth(-1),
+                          ),
+                          Text(
+                            _getMonthName(dashboardState.selectedMonth),
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right, color: AppColors.primary),
+                            onPressed: isCurrentMonth ? null : () => notifier.changeMonth(1),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: AppSpacing.space4),
+
+                      if (dashboardState.recentTransactions.isEmpty) ...[
+                        _buildEmptyState(context),
+                      ] else ...[
+                        // Summary cards
+                        SummaryCards(
+                          totalIncome: dashboardState.totalIncome,
+                          totalExpense: dashboardState.totalExpense,
+                        ),
+                        const SizedBox(height: AppSpacing.space3),
+
+                        // Pie chart breakdown
+                        if (dashboardState.totalExpense > 0)
+                          ExpenseChart(
+                            breakdowns: dashboardState.categoryBreakdown,
+                            totalExpense: dashboardState.totalExpense,
+                          ),
+                        const SizedBox(height: AppSpacing.space4),
+
+                        Text(
+                          'Transaksi Bulan Ini',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: AppSpacing.space2),
+
+                        // List of recent transactions for month
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: dashboardState.recentTransactions.length,
+                          itemBuilder: (context, index) {
+                            final tx = dashboardState.recentTransactions[index];
+                            final color = CategoryModel.getColor(tx.colorHex);
+                            final formattedAmount = '${tx.amountIdr.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")} IDR';
+
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: AppSpacing.space2),
+                              child: ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(AppSpacing.space2),
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    CategoryModel.getIconData(tx.iconName),
+                                    color: color,
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  tx.description,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
+                                ),
+                                subtitle: Text(
+                                  '${tx.transactionDate.day}/${tx.transactionDate.month}/${tx.transactionDate.year}',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                                trailing: Text(
+                                  formattedAmount,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.danger,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
+                        // Load More Button
+                        if (notifier.hasMore)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16.0),
+                            child: Center(
+                              child: TextButton(
+                                onPressed: () => notifier.loadMore(),
+                                child: const Text('Load More'),
+                              ),
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: AppSpacing.space6),
                     ],
                   ),
                 ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const MrOyenAvatar(size: 100, expression: 'mischievous'),
+            const SizedBox(height: AppSpacing.space4),
+            const Text(
+              'Tidak ada transaksi bulan ini! 😸',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.neutral900,
               ),
-              const SizedBox(height: AppSpacing.space5),
-              Text(
-                'Your Active Categories',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+            ),
+            const SizedBox(height: 8),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(
+                'Kamu belum mencatat pengeluaran di bulan ini. Ketuk tombol di bawah untuk mencatat transaksi pertamamu!',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.neutral500, height: 1.4),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Geser ke tab Mr. Oyen untuk mencatat pengeluaran!')),
+                );
+              },
+              child: const Text('Mulai Catat'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// Tab 3: History (Riwayat Transaksi)
+// ---------------------------------------------------------
+class _HistoryTab extends StatefulWidget {
+  const _HistoryTab();
+
+  @override
+  State<_HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends State<_HistoryTab> {
+  Future<List<Map<String, dynamic>>>? _historyFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  void _loadHistory() {
+    setState(() {
+      _historyFuture = _fetchHistory();
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchHistory() async {
+    final db = LocalDb.instance;
+    final user = await db.getUser();
+    if (user == null) return [];
+    return await db.getRecentTransactions(user.userId!, limit: 100);
+  }
+
+  String _formatDate(int timestamp) {
+    final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final day = date.day.toString().padLeft(2, '0');
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 
+      'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    final month = months[date.month - 1];
+    final year = date.year;
+    return '$day $month $year';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: AppColors.neutral50,
+      appBar: AppBar(
+        title: const Text(
+          'Riwayat Transaksi',
+          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.primary),
+            onPressed: _loadHistory,
+            tooltip: 'Segarkan',
+          )
+        ],
+      ),
+      body: SafeArea(
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _historyFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Terjadi kesalahan: ${snapshot.error}',
+                  style: const TextStyle(color: AppColors.danger),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.space2),
-              Text(
-                'These categories are stored in SQLite and will be used to parse transactions.',
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: AppSpacing.space4),
-              // Categories List
-              Expanded(
-                child: categoriesAsync.when(
-                  data: (categories) {
-                    if (categories.isEmpty) {
-                      return const Center(child: Text('No categories found.'));
-                    }
-                    return ListView.builder(
-                      itemCount: categories.length,
-                      itemBuilder: (context, index) {
-                        final cat = categories[index];
-                        final catColor = CategoryModel.getColor(cat.colorHex);
-                        
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: AppSpacing.space2),
-                          child: ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(AppSpacing.space2),
-                              decoration: BoxDecoration(
-                                color: catColor.withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                CategoryModel.getIconData(cat.iconName),
-                                color: catColor,
-                              ),
-                            ),
-                            title: Text(
-                              cat.categoryName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.neutral900,
-                              ),
-                            ),
-                            subtitle: Text(
-                              cat.isDefault ? 'Default Category' : 'Custom Category',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            trailing: cat.isDefault
-                                ? null
-                                : const Chip(
-                                    label: Text('Custom', style: TextStyle(fontSize: 10)),
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (err, stack) => Center(
-                    child: Text(
-                      'Failed to load categories: $err',
-                      style: const TextStyle(color: AppColors.danger),
+              );
+            }
+
+            final txs = snapshot.data ?? [];
+            if (txs.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('😺', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Belum ada transaksi tercatat.',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Gunakan Mr. Oyen atau Widget untuk mencatat pengeluaran!',
+                      style: TextStyle(fontSize: 12, color: AppColors.neutral500),
+                    ),
+                  ],
                 ),
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
+              child: ListView.builder(
+                itemCount: txs.length,
+                itemBuilder: (context, index) {
+                  final tx = txs[index];
+                  final amount = tx['amount_idr'] as int;
+                  final categoryName = tx['category_name'] as String;
+                  final colorHex = tx['color_hex'] as String?;
+                  final iconName = tx['icon_name'] as String?;
+                  final description = tx['description'] as String?;
+                  final timestamp = tx['transaction_date'] as int;
+                  final catColor = CategoryModel.getColor(colorHex);
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: AppSpacing.space2),
+                    child: ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(AppSpacing.space2),
+                        decoration: BoxDecoration(
+                          color: catColor.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          CategoryModel.getIconData(iconName),
+                          color: catColor,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        description != null && description.isNotEmpty ? description : categoryName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.neutral900,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _formatDate(timestamp),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      trailing: Text(
+                        'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.danger,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
