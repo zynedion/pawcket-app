@@ -7,6 +7,43 @@
 
 ---
 
+## 2026-06-03 — Feature 03: AI Chat Assistant Completed
+
+### What was built
+- **OpenRouter Model Auto-Fallback:** Implemented retry logic in `OpenRouterClient` that tries the primary model first (defaults to `google/gemini-2.5-flash:free`), then falls back to other free models (`google/gemini-2.0-flash-exp:free`, `meta-llama/llama-3-8b-instruct:free`, `qwen/qwen-2-7b-instruct:free`) if the previous one fails.
+- **Chat Data Models:** Created `ChatMessage` and `ChatSession` mapping SQLite schemas into Dart.
+- **Database Services:** Coded `ChatService` and added `getTransactionWithCategory`, `getMonthlyExpense`, `getRecentTransactions`, and `getActiveBudgets` methods inside `LocalDb` to retrieve financial context and link chat messages with transactions.
+- **Chat API Orchestration:** Coded `ChatApiService` that pulls monthly spending, budgets, and last 5 transactions from SQLite database, feeds them dynamically into Mr. Oyen's system prompt context, sends messages to OpenRouter, parses structured responses (incorporating Oyen's response text, Oyen's mood, and automatic expense detection), and persists transactions to DB.
+- **Chat State Management:** Implemented Riverpod-based state management (`chatProvider` & `ChatNotifier`) to manage chat histories, message queuing, mood states, session initialization, and database syncing.
+- **UI Screen & Chat Bubble:** Built `ChatScreen` and `ChatBubble` displaying message flows, Oyen avatar expressions changing dynamically, micro-animated dots for typing status, receipt visualization for linked transactions, session menu actions, and voice dictation.
+- **Main App Navigation & Tabs:** Refactored `DashboardScreen` into a tab-based navigation wrapper linking Dashboard (Category View), Mr. Oyen Chat Tab, and a Transaction History Tab (displaying detailed transaction logs from SQLite).
+- **Unit and Integration Tests:** Created `chat_test.dart` verifying `ChatMessage` mapping. Upgraded `home_widget` package to version `0.9.2` to resolve external compilation errors on newer Flutter SDK. Updated `widget_test.dart` with `pumpAndSettle()` to support async onboarding state checks. All 11 unit/widget tests now pass cleanly.
+
+### Decisions made
+- **Single API Call for Chat & Expense Logging:** Instructed Gemini inside the chat system prompt to return a structured JSON mapping containing Oyen's sassy text response, Oyen's mood, and optional transaction parameters. This allows us to parse and save logged transactions in a single LLM API call, preventing double calls and latency.
+- **Automatic Fallback Models:** Integrated a retry queue of 4 free high-quality models in `OpenRouterClient` so the chat assistant remains responsive even if one particular API endpoint is down.
+- **Embedded Receipts in Chat Bubbles:** Designed custom transaction cards showing category icons, color schemes, amounts, and descriptions directly inside Mr. Oyen's chat bubble whenever an expense was successfully recorded.
+
+---
+
+## 2026-06-03 — Feature 02: Home Screen Widget Completed
+
+### What was built
+- **Android Home Screen Widget:** Created XML layout (`pawcket_widget.xml`) and drawable background assets with transparent glassmorphism styling.
+- **Home Widget Native Bridge:** Created `PawcketWidgetProvider.kt` utilizing the `home_widget` package. Configured click actions to launch the Flutter app with custom parameters (`type_expense` and `voice_input`).
+- **QuickInputView Overlay Screen:** Implemented `quick_input_view.dart` which renders a translucent glassmorphic overlay for rapid expense entry.
+- **Speech-to-Text Integration:** Created `speech_service.dart` wrapping `speech_to_text` to transcribe Indonesian voice inputs.
+- **OpenRouter LLM Parser:** Built `openrouter_client.dart` and `nlp_parser.dart` to make API calls to OpenRouter using `google/gemini-2.5-flash:free` to parse raw input into structured transaction JSON.
+- **Dynamic Oyen Mascot Display:** Configured the mascot image (Lazyass, Thinking, Smirk, Angry) to update dynamically on both the widget and the QuickInputView depending on the transaction parsing state.
+- **Database Integration:** Created `TransactionModel` and updated `LocalDb` with `verifyCategoryExists` and `insertTransaction` methods to persist parsed transactions.
+
+### Decisions made
+- **Widget as Launcher:** Due to Android limitations preventing active keyboard text inputs inside home screen widgets, the widget functions as a quick launcher. It opens a dedicated overlay screen (`QuickInputView`) with auto-focus keyboard or auto-trigger voice listening.
+- **Native Drawable Mapping:** Copied Mr. Oyen mascot PNGs into Android's native `drawable` resource directory to allow rapid, latency-free updates in the home screen widget using resource IDs.
+- **Auto-Reset Widget State:** Configured success state (`smirk_oyen`) to automatically revert back to idle state (`lazyass_oyen`) after 3 seconds on the home screen widget.
+
+---
+
 ## 2026-06-02 — Mascot Assets Updated
 
 ### What was built

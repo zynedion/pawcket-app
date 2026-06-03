@@ -11,6 +11,7 @@ void main() {
         child: MyApp(),
       ),
     );
+    await tester.pumpAndSettle();
 
     // Verify that the title and subtitle are present
     expect(find.text('Welcome to Pawcket'), findsOneWidget);

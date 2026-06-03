@@ -22,8 +22,8 @@ Pawcket provides frictionless expense input through a transparent home screen wi
 | # | Feature | Status | File | Depends On |
 |---|---------|--------|------|------------|
 | 1 | Onboarding & Category Selection | ✅ Done | 03_features/01_onboarding.md | — |
-| 2 | Home Screen Widget (NLP Input) | ⏳ Pending | 03_features/02_home_widget_input.md | Onboarding (categories) |
-| 3 | AI Chat Assistant with Mr. Oyen | ⏳ Pending | 03_features/03_ai_chat_assistant.md | Onboarding + Home Widget |
+| 2 | Home Screen Widget (NLP Input) | ✅ Done | 03_features/02_home_widget_input.md | Onboarding (categories) |
+| 3 | AI Chat Assistant with Mr. Oyen | ✅ Done | 03_features/03_ai_chat_assistant.md | Onboarding + Home Widget |
 | 4 | Dashboard (Analytics & Summary) | ⏳ Pending | 03_features/04_dashboard.md | Home Widget (transactions) |
 | 5 | Transaction History & Management | ⏳ Pending | 03_features/05_transaction_history.md | Home Widget |
 | 6 | Profile & Settings | ⏳ Pending | 03_features/06_profile_settings.md | Onboarding |

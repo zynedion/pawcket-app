@@ -19,11 +19,14 @@ class MrOyenAvatar extends StatelessWidget {
         return 'assets/images/cunning_oyen.png';
       case 'interrogating':
       case 'interogating':
+      case 'shocked':
         return 'assets/images/interogating_oyen.png';
       case 'lazy':
       case 'lazyass':
+      case 'neutral':
         return 'assets/images/lazyass_oyen.png';
       case 'mischievous':
+      case 'happy':
         return 'assets/images/mischievous_oyen.png';
       case 'thinking':
         return 'assets/images/thinking_oyen.png';
