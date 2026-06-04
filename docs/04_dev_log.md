@@ -7,6 +7,48 @@
 
 ---
 
+## 2026-06-04 — Income Tracking & Dashboard Enhancement
+
+### What was built
+- **5 Income Categories:** Added `salary`, `bonus`, `investment`, `gift`, `otherIncome` to `PredefinedCategory` enum with unique icons (account_balance_wallet, star, trending_up, card_giftcard, attach_money) and green/teal color palette.
+- **Silent Migration:** Created `ensureIncomeCategoriesExist()` in `LocalDb` that auto-seeds income categories for existing users on app start without requiring uninstall or reset.
+- **Mr. Oyen Income Detection:** Updated `ChatApiService` system prompt so Mr. Oyen can classify income (gaji, bonus, hadiah, dll), respond with happy mood, and output `transaction_type: "income"` with correct category in `extracted_transaction`.
+- **NLPParser Income Detection:** Updated Widget quick-input parser to also detect income vs expense via keyword recognition (e.g., "gajian", "dapat uang" → income).
+- **ParsedTransaction Model:** Added `transactionType` field (`'expense'` or `'income'`) with default `'expense'` for backward compatibility.
+- **4-Card Dashboard Summary:** Refactored `SummaryCards` from 2-card to 4-card layout: Pemasukan (green ↓), Pengeluaran (red ↑), Transaksi (blue count), Saldo/Balance (dynamic green/red).
+- **Transaction List Color Coding:** Income shows green `+ Rp...`, expense shows red `- Rp...` in the recent transactions list.
+- **DashboardData Model:** Added `totalTransactions` field; updated `getMonthlySummary` SQL query to include `COUNT(*)`.
+- **Unit Tests:** Added 2 new income parsing tests (14 total, all passing).
+
+### Decisions made
+- **Income categories use `category_type` string (e.g., `'salary'`) in the database**, not the Dart enum constant name (`otherIncome`). This keeps DB queries and LLM prompts consistent.
+- **Pie Chart stays expense-only.** Income sources are typically 1-2 categories (salary), so a pie chart adds no value. Income is represented by the summary card total instead.
+- **Silent migration over schema version bump.** Since we only need to insert rows (not alter tables), we check-and-insert on every `getUser()` call. This is idempotent and avoids a database version migration.
+
+---
+
+## 2026-06-03 — Feature 04: Dashboard Completed + App Icon + Housekeeping
+
+### What was built
+- **Dashboard Analytics:** Implemented `DashboardNotifier` (Riverpod) with month-based navigation, pagination, and reactive data loading.
+- **Summary Cards & Expense Chart:** Created `SummaryCards` (income vs expense) and `ExpenseChart` (fl_chart pie chart) widgets with category-color-coded legend.
+- **Dashboard Screen Refactor:** Added month navigation (< / >), pull-to-refresh, paginated transaction list with load-more, and empty state with Mr. Oyen mascot.
+- **Real-Time Dashboard Refresh:** `ChatProvider` now calls `ref.invalidate(dashboardProvider)` after every successful transaction insert from chat, so Dashboard reflects new data immediately.
+- **App Icon:** Replaced default Flutter icon with custom `pawcket_logo.png` across all Android (`mipmap-*`) and iOS (`AppIcon.appiconset`) densities.
+- **OpenRouter Model Updates:** Switched default model to `openai/gpt-oss-120b` with fallbacks to `google/gemma-4-26b-a4b-it:free`, `meta-llama/llama-3.3-70b-instruct:free`, `qwen/qwen3-coder:free`. Increased API timeout from 10s to 45s.
+- **Security:** Added `.env` to `.gitignore`, removed hardcoded API key from `test_gemini.dart` to pass GitHub secret scanning.
+- **Unit Tests:** 13 tests passing (including dashboard boundary and data calculation tests).
+
+### Decisions made
+- **fl_chart for pie chart visualization.** Lightweight, well-maintained, and supports animated donut charts with center labels.
+- **Month-based navigation** instead of date-range picker — simpler UX for monthly budgeting mindset.
+- **Empty state design** shows Mr. Oyen with a playful message encouraging users to start tracking.
+
+### Deviations from spec
+- Dashboard was spec'd as "⏳ Pending" in `00_master_plan.md` — now marked ✅ Done.
+
+---
+
 ## 2026-06-03 — Feature 03: AI Chat Assistant Completed
 
 ### What was built
