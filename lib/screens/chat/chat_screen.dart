@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
 import '../../providers/chat_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../widgets/common/mr_oyen_avatar.dart';
 import '../../services/speech/speech_service.dart';
 import 'widgets/chat_bubble.dart';
@@ -323,6 +324,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildInputArea() {
     final chatState = ref.watch(chatProvider);
+    final settingsState = ref.watch(settingsProvider);
+    final enableVoice = settingsState.preferences?.enableVoiceInput ?? true;
     
     return Container(
       padding: const EdgeInsets.all(AppSpacing.space3),
@@ -335,15 +338,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Row(
         children: [
           // Voice Input Dictation Button
-          IconButton(
-            icon: Icon(
-              _isListening ? Icons.stop : Icons.mic,
-              color: _isListening ? AppColors.danger : AppColors.secondary,
+          if (enableVoice) ...[
+            IconButton(
+              icon: Icon(
+                _isListening ? Icons.stop : Icons.mic,
+                color: _isListening ? AppColors.danger : AppColors.secondary,
+              ),
+              onPressed: chatState.isSending ? null : _toggleSpeechInput,
+              tooltip: 'Suara ke Teks',
             ),
-            onPressed: chatState.isSending ? null : _toggleSpeechInput,
-            tooltip: 'Suara ke Teks',
-          ),
-          const SizedBox(width: 4),
+            const SizedBox(width: 4),
+          ],
 
           // Message Input Field
           Expanded(

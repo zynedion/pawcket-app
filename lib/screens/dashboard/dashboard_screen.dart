@@ -10,6 +10,7 @@ import '../../services/database/local_db.dart';
 import '../../widgets/common/mr_oyen_avatar.dart';
 import '../chat/chat_screen.dart';
 import '../history/history_screen.dart';
+import '../settings/settings_screen.dart';
 import '../../providers/dashboard_provider.dart';
 import 'widgets/summary_cards.dart';
 import 'widgets/expense_chart.dart';
@@ -28,6 +29,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     const _DashboardTab(),
     const ChatScreen(),
     const HistoryScreen(),
+    const SettingsScreen(),
   ];
 
   @override
@@ -75,6 +77,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               icon: Icon(Icons.history_outlined),
               activeIcon: Icon(Icons.history),
               label: 'Riwayat',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: 'Pengaturan',
             ),
           ],
         ),

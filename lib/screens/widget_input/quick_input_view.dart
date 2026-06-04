@@ -6,6 +6,7 @@ import '../../services/api/nlp_parser.dart';
 import '../../services/database/local_db.dart';
 import '../../services/speech/speech_service.dart';
 import '../../services/widget/widget_service.dart';
+import '../../providers/settings_provider.dart';
 
 class QuickInputView extends ConsumerStatefulWidget {
   final bool startWithVoice;
@@ -34,11 +35,15 @@ class _QuickInputViewState extends ConsumerState<QuickInputView> {
   @override
   void initState() {
     super.initState();
-    _initSpeech();
-    if (widget.startWithVoice) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _toggleListening();
-      });
+    final settings = ref.read(settingsProvider);
+    final enableVoice = settings.preferences?.enableVoiceInput ?? true;
+    if (enableVoice) {
+      _initSpeech();
+      if (widget.startWithVoice) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _toggleListening();
+        });
+      }
     }
   }
 
@@ -315,31 +320,32 @@ class _QuickInputViewState extends ConsumerState<QuickInputView> {
                       ),
 
                       // Microphone Button (Voice Trigger)
-                      GestureDetector(
-                        onTap: _isLoading ? null : _toggleListening,
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _isListening 
-                              ? const Color(0xFFEF4444) // Red while recording
-                              : const Color(0xFF0EA5E9), // Sky Blue otherwise
-                            boxShadow: _isListening
-                              ? [
-                                  BoxShadow(
-                                    color: const Color(0xFFEF4444).withOpacity(0.5),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  )
-                                ]
-                              : [],
-                          ),
-                          child: Icon(
-                            _isListening ? Icons.stop : Icons.mic,
-                            color: Colors.white,
+                      if (ref.watch(settingsProvider).preferences?.enableVoiceInput ?? true)
+                        GestureDetector(
+                          onTap: _isLoading ? null : _toggleListening,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _isListening 
+                                ? const Color(0xFFEF4444) // Red while recording
+                                : const Color(0xFF0EA5E9), // Sky Blue otherwise
+                              boxShadow: _isListening
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFEF4444).withOpacity(0.5),
+                                      blurRadius: 10,
+                                      spreadRadius: 2,
+                                    )
+                                  ]
+                                : [],
+                            ),
+                            child: Icon(
+                              _isListening ? Icons.stop : Icons.mic,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
 
                       // Add/Save Button
                       ElevatedButton(

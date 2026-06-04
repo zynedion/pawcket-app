@@ -26,8 +26,8 @@ Pawcket provides frictionless expense input through a transparent home screen wi
 | 3 | AI Chat Assistant with Mr. Oyen | ✅ Done | 03_features/03_ai_chat_assistant.md | Onboarding + Home Widget |
 | 4 | Dashboard (Analytics & Summary) | ✅ Done | 03_features/04_dashboard.md | Home Widget (transactions) |
 | 5 | Transaction History & Management | ✅ Done | 03_features/05_transaction_history.md | Home Widget |
-| 6 | Profile & Settings | ⏳ Pending | 03_features/06_profile_settings.md | Onboarding |
-| 7 | Cloud Backup & Sync (Optional) | ⏳ Pending | 03_features/07_cloud_backup.md | All core features |
+| 6 | Profile & Settings | ✅ Done | 03_features/06_profile_settings.md | Onboarding |
+| 7 | Cloud Backup & Sync (Optional) | ✅ Done (MVP Stub) | 03_features/07_cloud_backup.md | All core features |
 
 ## Global Constraints
 - **Platform targets:** Android 10+ (primary MVP); iOS 15+ (post-MVP with alternative input method)
@@ -71,3 +71,5 @@ Pawcket provides frictionless expense input through a transparent home screen wi
 - Design guide: `docs/02_design_guide.md`
 - Features: `docs/03_features/`
 - Dev log: `docs/04_dev_log.md`
+- Future recommendations: `docs/05_future_recommendations.md`
+- Design workflow: `docs/06_design_workflow.md`

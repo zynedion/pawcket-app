@@ -128,6 +128,36 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
+  void _showBulkDeleteConfirmation(int count) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Transaksi', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('Apakah Anda yakin ingin menghapus $count transaksi terpilih?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal', style: TextStyle(color: AppColors.neutral500)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await ref.read(historyProvider.notifier).deleteSelectedTransactions();
+              if (success && mounted) {
+                ref.invalidate(dashboardProvider);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('$count transaksi berhasil dihapus')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showUndoSnackBar() {
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -191,30 +221,55 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.neutral50,
-      appBar: AppBar(
-        title: const Text(
-          'Riwayat Transaksi',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.file_upload_outlined, color: AppColors.primary),
-            tooltip: 'Impor Spreadsheet/CSV',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CsvImportScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: () => ref.read(historyProvider.notifier).loadTransactions(refresh: true),
-            tooltip: 'Segarkan',
-          ),
-        ],
-      ),
+      appBar: state.selectedTransactions.isNotEmpty
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close, color: AppColors.neutral900),
+                onPressed: () => ref.read(historyProvider.notifier).clearSelection(),
+              ),
+              title: Text(
+                '${state.selectedTransactions.length} Terpilih',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
+              ),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.select_all, color: AppColors.neutral900),
+                  tooltip: 'Pilih Semua',
+                  onPressed: () => ref.read(historyProvider.notifier).selectAll(),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: AppColors.danger),
+                  tooltip: 'Hapus Terpilih',
+                  onPressed: () => _showBulkDeleteConfirmation(state.selectedTransactions.length),
+                ),
+              ],
+            )
+          : AppBar(
+              title: const Text(
+                'Riwayat Transaksi',
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
+              ),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.file_upload_outlined, color: AppColors.primary),
+                  tooltip: 'Impor Spreadsheet/CSV',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CsvImportScreen()),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: AppColors.primary),
+                  onPressed: () => ref.read(historyProvider.notifier).loadTransactions(refresh: true),
+                  tooltip: 'Segarkan',
+                ),
+              ],
+            ),
       body: SafeArea(
         child: Column(
           children: [
@@ -410,6 +465,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                     (Match m) => '${m[1]}.',
                                   );
 
+                              final isSelected = state.selectedTransactions.contains(tx.transactionId);
+
                               return Dismissible(
                                 key: Key('tx_${tx.transactionId}'),
                                 direction: DismissDirection.endToStart,
@@ -430,8 +487,20 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                 child: Card(
                                   margin: const EdgeInsets.only(bottom: AppSpacing.space2),
                                   elevation: 0.5,
+                                  color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : AppColors.neutral0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: isSelected ? const BorderSide(color: AppColors.primary, width: 1.5) : BorderSide.none,
+                                  ),
                                   child: ListTile(
-                                    onTap: () => _showEditSheet(tx),
+                                    onLongPress: () => ref.read(historyProvider.notifier).toggleSelection(tx.transactionId),
+                                    onTap: () {
+                                      if (state.selectedTransactions.isNotEmpty) {
+                                        ref.read(historyProvider.notifier).toggleSelection(tx.transactionId);
+                                      } else {
+                                        _showEditSheet(tx);
+                                      }
+                                    },
                                     leading: Stack(
                                       clipBehavior: Clip.none,
                                       children: [

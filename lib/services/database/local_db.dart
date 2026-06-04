@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../../models/category.dart';
 import '../../models/user.dart';
 import '../../models/transaction.dart';
+import '../../models/user_preferences.dart';
 import '../../utils/constants.dart';
 
 class LocalDb {
@@ -686,6 +687,30 @@ class LocalDb {
     );
   }
 
+  /// Soft deletes multiple transactions.
+  Future<int> softDeleteTransactionsBatch(List<int> transactionIds, int userId) async {
+    if (transactionIds.isEmpty) return 0;
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    
+    int totalCount = 0;
+    await db.transaction((txn) async {
+      for (final id in transactionIds) {
+        final count = await txn.update(
+          'transactions',
+          {
+            'deleted_at': now,
+            'updated_at': now,
+          },
+          where: 'transaction_id = ? AND user_id = ?',
+          whereArgs: [id, userId],
+        );
+        totalCount += count;
+      }
+    });
+    return totalCount;
+  }
+
   /// Restores a soft-deleted transaction.
   Future<int> restoreTransaction(int transactionId, int userId) async {
     final db = await database;
@@ -711,5 +736,117 @@ class LocalDb {
       }
       await batch.commit(noResult: true);
     });
+  }
+
+  /// Fetches the user preferences. If not exists, seeds them.
+  Future<UserPreferencesModel?> getUserPreferences(int userId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'user_preferences',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    if (maps.isEmpty) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final prefs = UserPreferencesModel(
+        userId: userId,
+        enableVoiceInput: true,
+        enableCloudSync: false,
+        enableNotifications: true,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await db.insert('user_preferences', prefs.toMap());
+      return prefs;
+    }
+    return UserPreferencesModel.fromMap(maps.first);
+  }
+
+  /// Updates user preferences in SQLite.
+  Future<int> updateUserPreferences(UserPreferencesModel prefs) async {
+    final db = await database;
+    return await db.update(
+      'user_preferences',
+      prefs.toMap(),
+      where: 'user_id = ?',
+      whereArgs: [prefs.userId],
+    );
+  }
+
+  /// Clear all messages for user.
+  Future<void> clearChatHistory(int userId) async {
+    final db = await database;
+    await db.delete(
+      'chat_messages',
+      where: 'session_id IN (SELECT session_id FROM chat_sessions WHERE user_id = ?)',
+      whereArgs: [userId],
+    );
+  }
+
+  /// Nuclear reset: Deletes all transactions, custom categories, chat, and resets the user onboarding completed status to 0.
+  Future<void> resetAppData(int userId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('transactions', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('categories', where: 'user_id = ? AND is_default = 0', whereArgs: [userId]);
+      await txn.delete('chat_messages', where: 'session_id IN (SELECT session_id FROM chat_sessions WHERE user_id = ?)', whereArgs: [userId]);
+      await txn.delete('chat_sessions', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('budgets', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('user_preferences', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('sync_state', where: 'user_id = ?', whereArgs: [userId]);
+      await txn.delete('users', where: 'user_id = ?', whereArgs: [userId]);
+    });
+  }
+
+  /// Gets the last sync time for a user.
+  Future<DateTime?> getLastSyncTime(int userId) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'sync_state',
+      columns: ['last_sync_time'],
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    if (maps.isEmpty || maps.first['last_sync_time'] == null) {
+      return null;
+    }
+    return DateTime.fromMillisecondsSinceEpoch(maps.first['last_sync_time'] as int);
+  }
+
+  /// Updates or inserts the last sync time for a user.
+  Future<void> updateLastSyncTime(int userId, int timeMs) async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    
+    // Check if sync_state exists for this user
+    final List<Map<String, dynamic>> maps = await db.query(
+      'sync_state',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    
+    if (maps.isEmpty) {
+      await db.insert('sync_state', {
+        'user_id': userId,
+        'last_sync_time': timeMs,
+        'last_sync_direction': 'push',
+        'has_unsync_changes': 0,
+        'created_at': now,
+        'updated_at': now,
+      });
+    } else {
+      await db.update(
+        'sync_state',
+        {
+          'last_sync_time': timeMs,
+          'last_sync_direction': 'push',
+          'has_unsync_changes': 0,
+          'updated_at': now,
+        },
+        where: 'user_id = ?',
+        whereArgs: [userId],
+      );
+    }
   }
 }

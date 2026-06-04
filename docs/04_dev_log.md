@@ -7,6 +7,35 @@
 
 ---
 
+## 2026-06-04 — Feature 07: Cloud Backup & Sync (MVP Stub) Completed
+
+### What was built
+- **Database Helper Operations:** Integrated `getLastSyncTime` and `updateLastSyncTime` methods in `LocalDb` to interact with SQLite's `sync_state` table. Structured `resetAppData` to purge synchronization records.
+- **Provider-Level Sync & Loading:** Added `lastSyncTime` and `isSyncing` fields to Riverpod's `SettingsState` and implemented `syncNow()` in `SettingsNotifier` to emulate a 2-second cloud sync, saving the timestamp locally.
+- **Dynamic Settings Sync Card:** Enhanced the Settings UI to display the formatted last-synced timestamp (e.g., "Baru saja", "Belum pernah disinkronkan") and trigger a simulated backup process. Included animated progress indicators during syncing and a Beta simulator disclaimer.
+- **Unit Testing Verification:** Wrote `sync_test.dart` to verify Riverpod state mutations. All 36 tests pass cleanly.
+
+### Decisions made
+- **Mock delay simulation:** A 2-second network latency simulation was coded using `Future.delayed` to represent active API communication with Supabase/Firebase in post-MVP.
+
+---
+
+## 2026-06-04 — Feature 06: Profile & Settings Completed
+
+### What was built
+- **Settings Screen & Tab:** Added the 4th tab `SettingsScreen` in `DashboardScreen` (`lib/screens/dashboard/dashboard_screen.dart`). Displays masked device ID, created date, toggles for preferences, clear chat history, reset app, and the custom Bottom Sheet with Mr. Oyen's story.
+- **Settings Provider:** Created `settingsProvider` in `lib/providers/settings_provider.dart` which reads/writes user preferences using sqflite, tracks device/version metadata via `package_info_plus`, and orchestrates clear history or nuclear application reset actions.
+- **Preference Persist & Serialization:** Created `UserPreferencesModel` and DB access methods to read/save voice dictation and backup flag toggles.
+- **Voice Visibility Conditions:** Updated `ChatScreen` and `QuickInputView` inputs to dynamically hide the dictation button when `enableVoiceInput` is disabled.
+- **Unit Testing:** Created `settings_test.dart` containing serialization, default values, and copyWith tests. All 34 tests in the suite pass cleanly.
+
+### Decisions made
+- **Copy-to-Clipboard fallback for Support Email:** Rather than introducing new package dependencies (like `url_launcher` which requires complex Android manifest query intent rules), we implement a copy email action on tap which provides 100% reliable functionality.
+- **Double confirmation for Reset App Data:** Implemented a double modal warning gate for "Reset App Data" to prevent unintended destructive data loss.
+- **Omission of deprecated SwitchListTile activeColor:** Omitted deprecated activeColor switches to use clean, modern default Material 3 color schemes.
+
+---
+
 ## 2026-06-04 — Feature 05: Transaction History & CSV Import Completed
 
 ### What was built

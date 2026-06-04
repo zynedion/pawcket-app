@@ -16,6 +16,7 @@ class HistoryState {
   final int offset;
   final String? errorMessage;
   final TransactionSummary? recentlyDeletedTransaction; // for undo action
+  final Set<int> selectedTransactions;
 
   const HistoryState({
     required this.transactions,
@@ -30,6 +31,7 @@ class HistoryState {
     required this.offset,
     this.errorMessage,
     this.recentlyDeletedTransaction,
+    this.selectedTransactions = const {},
   });
 
   factory HistoryState.initial() {
@@ -41,6 +43,7 @@ class HistoryState {
       isLoading: false,
       hasMore: true,
       offset: 0,
+      selectedTransactions: const {},
     );
   }
 
@@ -57,6 +60,7 @@ class HistoryState {
     int? offset,
     String? errorMessage,
     TransactionSummary? recentlyDeletedTransaction,
+    Set<int>? selectedTransactions,
     bool clearCategoryFilter = false,
     bool clearDateRange = false,
     bool clearRecentlyDeleted = false,
@@ -74,6 +78,7 @@ class HistoryState {
       offset: offset ?? this.offset,
       errorMessage: errorMessage,
       recentlyDeletedTransaction: clearRecentlyDeleted ? null : (recentlyDeletedTransaction ?? this.recentlyDeletedTransaction),
+      selectedTransactions: selectedTransactions ?? this.selectedTransactions,
     );
   }
 }
@@ -203,6 +208,52 @@ class HistoryNotifier extends StateNotifier<HistoryState> {
       }
     } catch (e) {
       state = state.copyWith(errorMessage: 'Gagal menghapus transaksi: $e');
+    }
+    return false;
+  }
+
+  /// Toggles selection of a transaction.
+  void toggleSelection(int transactionId) {
+    final currentSelection = Set<int>.from(state.selectedTransactions);
+    if (currentSelection.contains(transactionId)) {
+      currentSelection.remove(transactionId);
+    } else {
+      currentSelection.add(transactionId);
+    }
+    state = state.copyWith(selectedTransactions: currentSelection);
+  }
+
+  /// Clears all selected transactions.
+  void clearSelection() {
+    state = state.copyWith(selectedTransactions: const {});
+  }
+
+  /// Selects all loaded transactions.
+  void selectAll() {
+    final allIds = state.transactions.map((t) => t.transactionId).toSet();
+    state = state.copyWith(selectedTransactions: allIds);
+  }
+
+  /// Soft deletes selected transactions.
+  Future<bool> deleteSelectedTransactions() async {
+    final idsToDelete = state.selectedTransactions.toList();
+    if (idsToDelete.isEmpty) return false;
+
+    try {
+      final user = await db.getUser();
+      if (user == null) return false;
+
+      final count = await db.softDeleteTransactionsBatch(idsToDelete, user.userId!);
+      if (count > 0) {
+        state = state.copyWith(
+          transactions: state.transactions.where((t) => !idsToDelete.contains(t.transactionId)).toList(),
+          selectedTransactions: const {},
+          clearRecentlyDeleted: true, // clear undo if we do bulk delete, as we don't have bulk undo
+        );
+        return true;
+      }
+    } catch (e) {
+      state = state.copyWith(errorMessage: 'Gagal menghapus transaksi terpilih: $e');
     }
     return false;
   }
