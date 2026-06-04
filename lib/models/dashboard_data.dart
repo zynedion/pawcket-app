@@ -2,6 +2,7 @@ class DashboardData {
   final int totalIncome;
   final int totalExpense;
   final int net;
+  final int totalTransactions;
   final List<CategoryBreakdown> categoryBreakdown;
   final List<TransactionSummary> recentTransactions;
   final DateTime selectedMonth;
@@ -12,6 +13,7 @@ class DashboardData {
     required this.totalIncome,
     required this.totalExpense,
     required this.net,
+    required this.totalTransactions,
     required this.categoryBreakdown,
     required this.recentTransactions,
     required this.selectedMonth,
@@ -24,6 +26,7 @@ class DashboardData {
       totalIncome: 0,
       totalExpense: 0,
       net: 0,
+      totalTransactions: 0,
       categoryBreakdown: const [],
       recentTransactions: const [],
       selectedMonth: month,
@@ -35,6 +38,7 @@ class DashboardData {
     int? totalIncome,
     int? totalExpense,
     int? net,
+    int? totalTransactions,
     List<CategoryBreakdown>? categoryBreakdown,
     List<TransactionSummary>? recentTransactions,
     DateTime? selectedMonth,
@@ -45,6 +49,7 @@ class DashboardData {
       totalIncome: totalIncome ?? this.totalIncome,
       totalExpense: totalExpense ?? this.totalExpense,
       net: net ?? this.net,
+      totalTransactions: totalTransactions ?? this.totalTransactions,
       categoryBreakdown: categoryBreakdown ?? this.categoryBreakdown,
       recentTransactions: recentTransactions ?? this.recentTransactions,
       selectedMonth: selectedMonth ?? this.selectedMonth,
@@ -81,6 +86,7 @@ class TransactionSummary {
   final int amountIdr;
   final DateTime transactionDate;
   final bool isSyncedToCloud;
+  final String transactionType; // 'expense' or 'income'
 
   const TransactionSummary({
     required this.transactionId,
@@ -91,5 +97,6 @@ class TransactionSummary {
     required this.amountIdr,
     required this.transactionDate,
     required this.isSyncedToCloud,
+    this.transactionType = 'expense',
   });
 }

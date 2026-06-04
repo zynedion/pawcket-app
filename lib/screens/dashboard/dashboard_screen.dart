@@ -189,6 +189,7 @@ class _DashboardTab extends ConsumerWidget {
                         SummaryCards(
                           totalIncome: dashboardState.totalIncome,
                           totalExpense: dashboardState.totalExpense,
+                          totalTransactions: dashboardState.totalTransactions,
                         ),
                         const SizedBox(height: AppSpacing.space3),
 
@@ -214,7 +215,12 @@ class _DashboardTab extends ConsumerWidget {
                           itemBuilder: (context, index) {
                             final tx = dashboardState.recentTransactions[index];
                             final color = CategoryModel.getColor(tx.colorHex);
-                            final formattedAmount = '${tx.amountIdr.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]}.")} IDR';
+                            final isIncome = tx.transactionType == 'income';
+                            final amountStr = tx.amountIdr.toString().replaceAllMapped(
+                              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                              (Match m) => '${m[1]}.',
+                            );
+                            final formattedAmount = '${isIncome ? '+' : '-'} Rp$amountStr';
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: AppSpacing.space2),
@@ -241,9 +247,9 @@ class _DashboardTab extends ConsumerWidget {
                                 ),
                                 trailing: Text(
                                   formattedAmount,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.danger,
+                                    color: isIncome ? AppColors.success : AppColors.danger,
                                   ),
                                 ),
                               ),

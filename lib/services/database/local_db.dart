@@ -222,7 +222,49 @@ class LocalDb {
       limit: 1,
     );
     if (maps.isEmpty) return null;
-    return UserModel.fromMap(maps.first);
+    final user = UserModel.fromMap(maps.first);
+    // Silently seed income categories for existing users
+    await ensureIncomeCategoriesExist(user.userId!);
+    return user;
+  }
+
+  /// Inserts income categories if they don't exist yet (silent migration for existing users).
+  Future<void> ensureIncomeCategoriesExist(int userId) async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    final incomeTypes = [
+      {'category_name': 'Gaji',           'category_type': 'salary',       'icon_name': 'account_balance_wallet', 'color_hex': '#10B981'},
+      {'category_name': 'Bonus',          'category_type': 'bonus',        'icon_name': 'star',                   'color_hex': '#059669'},
+      {'category_name': 'Investasi',      'category_type': 'investment',   'icon_name': 'trending_up',            'color_hex': '#0D9488'},
+      {'category_name': 'Hadiah',         'category_type': 'gift',         'icon_name': 'card_giftcard',          'color_hex': '#7C3AED'},
+      {'category_name': 'Pendapatan Lain','category_type': 'other_income', 'icon_name': 'attach_money',           'color_hex': '#16A34A'},
+    ];
+
+    for (final income in incomeTypes) {
+      final existing = await db.query(
+        'categories',
+        where: 'user_id = ? AND category_type = ? AND deleted_at IS NULL',
+        whereArgs: [userId, income['category_type']],
+        limit: 1,
+      );
+      if (existing.isEmpty) {
+        await db.insert(
+          'categories',
+          {
+            'user_id': userId,
+            'category_name': income['category_name'],
+            'category_type': income['category_type'],
+            'icon_name': income['icon_name'],
+            'color_hex': income['color_hex'],
+            'is_default': 1,
+            'created_at': now,
+            'updated_at': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    }
   }
 
   /// Creates a local user in the users table and seeds user_preferences.
@@ -399,24 +441,26 @@ class LocalDb {
     return results.first;
   }
 
-  /// Fetches monthly summary (income vs expense) for a user for a specific month (format: 'YYYY-MM').
+  /// Fetches monthly summary (income vs expense + total count) for a user for a specific month (format: 'YYYY-MM').
   Future<Map<String, int>> getMonthlySummary(int userId, String monthStr) async {
     final db = await database;
     final List<Map<String, dynamic>> results = await db.rawQuery('''
       SELECT 
         COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount_idr ELSE 0 END), 0) as total_income,
-        COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount_idr ELSE 0 END), 0) as total_expense
+        COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount_idr ELSE 0 END), 0) as total_expense,
+        COUNT(*) as total_transactions
       FROM transactions
       WHERE user_id = ? 
         AND deleted_at IS NULL
         AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch')) = ?
     ''', [userId, monthStr]);
 
-    if (results.isEmpty) return {'income': 0, 'expense': 0};
+    if (results.isEmpty) return {'income': 0, 'expense': 0, 'total_transactions': 0};
     final row = results.first;
     return {
       'income': row['total_income'] as int? ?? 0,
       'expense': row['total_expense'] as int? ?? 0,
+      'total_transactions': row['total_transactions'] as int? ?? 0,
     };
   }
 
@@ -465,6 +509,7 @@ class LocalDb {
         t.description,
         t.amount_idr,
         t.transaction_date,
+        t.transaction_type,
         t.is_synced_to_cloud
       FROM transactions t
       JOIN categories c ON t.category_id = c.category_id

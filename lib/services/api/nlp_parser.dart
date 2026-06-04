@@ -15,17 +15,27 @@ class NLPParser {
     final today = DateTime.now();
     final todayStr = today.toIso8601String().split('T')[0];
     
-    final systemPrompt = '''
-You are a transaction parser. User input is in Indonesian or English. Parse it strictly into JSON format:
+    final systemPrompt = '''\
+You are a transaction parser. User input is in Indonesian or English. Determine if the input is an EXPENSE or INCOME, then parse it strictly into JSON.
+
+Expense categories: food, transport, entertainment, utilities, healthcare, shopping, housing, other
+Income categories: salary, bonus, investment, gift, other_income
+
+Return JSON format:
 {
-  "category": "one of: food, transport, entertainment, utilities, healthcare, shopping, housing, other",
+  "transaction_type": "expense" | "income",
+  "category": "<one of the categories above based on type>",
   "amount": <positive integer in IDR>,
   "vendor": "<vendor name or empty string>",
   "description": "<raw user input>",
   "date": "YYYY-MM-DD",
   "day": "<Monday, Tuesday, etc>"
 }
-If parsing is impossible or no amount/price is specified, return {"error": "Could not find a valid expense amount or category."}.
+
+Rules:
+- If user says "gaji", "gajian", "bonus", "terima uang", "dapat uang", "pemasukan" → transaction_type = "income"
+- If user says "beli", "bayar", "makan", "habis", "keluar" → transaction_type = "expense"
+- If parsing is impossible or no amount is specified, return {"error": "Could not parse a valid transaction."}.
 Today's date is $todayStr.
 Never return markdown, backticks (```json), or any explanations. Return only the raw JSON.
 ''';

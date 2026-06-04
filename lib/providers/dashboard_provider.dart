@@ -70,6 +70,7 @@ class DashboardNotifier extends StateNotifier<DashboardData> {
           amountIdr: tx['amount_idr'] as int,
           transactionDate: DateTime.fromMillisecondsSinceEpoch(tx['transaction_date'] as int),
           isSyncedToCloud: (tx['is_synced_to_cloud'] as int? ?? 0) == 1,
+          transactionType: tx['transaction_type'] as String? ?? 'expense',
         );
       }).toList();
 
@@ -81,6 +82,7 @@ class DashboardNotifier extends StateNotifier<DashboardData> {
         state = state.copyWith(
           totalIncome: summary['income'] ?? 0,
           totalExpense: summary['expense'] ?? 0,
+          totalTransactions: summary['total_transactions'] ?? 0,
           net: (summary['income'] ?? 0) - (summary['expense'] ?? 0),
           categoryBreakdown: mappedBreakdowns,
           recentTransactions: mappedTxs,

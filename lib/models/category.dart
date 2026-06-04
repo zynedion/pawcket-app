@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 enum PredefinedCategory {
+  // === Expense Categories ===
   food('Food', 'food', 'fastfood', '#F97316'),
   transport('Transport', 'transport', 'directions_car', '#0284C7'),
   entertainment('Entertainment', 'entertainment', 'theaters', '#A855F7'),
@@ -8,7 +9,14 @@ enum PredefinedCategory {
   healthcare('Healthcare', 'healthcare', 'health_and_safety', '#EC4899'),
   shopping('Shopping', 'shopping', 'shopping_bag', '#14B8A6'),
   housing('Housing', 'housing', 'home', '#78716C'),
-  other('Other', 'other', 'category', '#6B7280');
+  other('Other', 'other', 'category', '#6B7280'),
+
+  // === Income Categories ===
+  salary('Gaji', 'salary', 'account_balance_wallet', '#10B981'),
+  bonus('Bonus', 'bonus', 'star', '#059669'),
+  investment('Investasi', 'investment', 'trending_up', '#0D9488'),
+  gift('Hadiah', 'gift', 'card_giftcard', '#7C3AED'),
+  otherIncome('Pendapatan Lain', 'other_income', 'attach_money', '#16A34A');
 
   final String displayName;
   final String categoryType;
@@ -21,6 +29,24 @@ enum PredefinedCategory {
     this.iconName,
     this.colorHex,
   );
+
+  /// Returns true if this category is used for income transactions.
+  bool get isIncome => [
+    'salary', 'bonus', 'investment', 'gift', 'other_income'
+  ].contains(categoryType);
+
+  /// Expense-only categories
+  static List<PredefinedCategory> get expenseCategories =>
+      PredefinedCategory.values.where((c) => !c.isIncome).toList();
+
+  /// Income-only categories
+  static List<PredefinedCategory> get incomeCategories =>
+      PredefinedCategory.values.where((c) => c.isIncome).toList();
+
+  /// Check whether a given categoryType string belongs to income
+  static bool isIncomeType(String categoryType) => [
+    'salary', 'bonus', 'investment', 'gift', 'other_income'
+  ].contains(categoryType.toLowerCase());
 }
 
 class CategoryModel {
@@ -97,6 +123,17 @@ class CategoryModel {
         return Icons.home;
       case 'palette':
         return Icons.palette;
+      // Income icons
+      case 'account_balance_wallet':
+        return Icons.account_balance_wallet;
+      case 'star':
+        return Icons.star;
+      case 'trending_up':
+        return Icons.trending_up;
+      case 'card_giftcard':
+        return Icons.card_giftcard;
+      case 'attach_money':
+        return Icons.attach_money;
       default:
         return Icons.category;
     }

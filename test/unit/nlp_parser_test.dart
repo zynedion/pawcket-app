@@ -72,5 +72,30 @@ void main() {
       expect(result.amount, equals(0));
       expect(result.category, equals('other'));
     });
+
+    test('Income transaction parsed correctly from JSON', () async {
+      final jsonResponse = '{"transaction_type": "income", "category": "salary", "amount": 5000000, "vendor": null, "description": "Gajian bulan ini", "date": "2025-06-01", "day": "Sunday"}';
+      final mockClient = MockOpenRouterClient(responseToReturn: jsonResponse);
+      final parser = NLPParser(client: mockClient);
+
+      final result = await parser.parseExpenseFromText('Gajian bulan ini 5 juta');
+
+      expect(result.error, isNull);
+      expect(result.amount, equals(5000000));
+      expect(result.category, equals('salary'));
+      expect(result.transactionType, equals('income'));
+    });
+
+    test('Expense transaction retains expense type by default', () async {
+      final jsonResponse = '{"transaction_type": "expense", "category": "food", "amount": 25000, "vendor": "Warung Makan", "description": "Makan siang", "date": "2025-06-01", "day": "Sunday"}';
+      final mockClient = MockOpenRouterClient(responseToReturn: jsonResponse);
+      final parser = NLPParser(client: mockClient);
+
+      final result = await parser.parseExpenseFromText('Makan siang 25rb');
+
+      expect(result.error, isNull);
+      expect(result.amount, equals(25000));
+      expect(result.transactionType, equals('expense'));
+    });
   });
 }
