@@ -86,8 +86,8 @@ Format JSON:
 }
 
 PANDUAN KATEGORI:
-- Pengeluaran (expense): food, transport, entertainment, utilities, healthcare, shopping, housing, other
-- Pemasukan (income): salary (gaji), bonus, investment (investasi/dividen), gift (hadiah/transfer), other_income
+- Pengeluaran (expense): food, transport, entertainment, utilities, healthcare, shopping, housing, social (sosial/sedekah), emergency_fund (dana darurat), debt (cicilan/utang), investment_out (investasi/saham/emas), other
+- Pemasukan (income): salary (gaji), bonus, investment (hasil investasi/dividen), gift (hadiah/transfer), other_income
 
 Panduan Mood & Tanggapan:
 1. "extracted_transaction" HANYA boleh diisi jika user dengan jelas menyatakan ingin mencatat PENGELUARAN atau PEMASUKAN. Jika tidak ada transaksi baru, isi dengan null.

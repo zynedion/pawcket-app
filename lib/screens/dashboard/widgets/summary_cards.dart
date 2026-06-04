@@ -5,15 +5,15 @@ class SummaryCards extends StatelessWidget {
   final int totalIncome;
   final int totalExpense;
   final int totalTransactions;
+  final int cumulativeBalance;
 
   const SummaryCards({
     super.key,
     required this.totalIncome,
     required this.totalExpense,
     required this.totalTransactions,
+    required this.cumulativeBalance,
   });
-
-  int get net => totalIncome - totalExpense;
 
   String _formatCurrency(int amount) {
     final abs = amount.abs();
@@ -27,8 +27,8 @@ class SummaryCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final netColor = net >= 0 ? AppColors.success : AppColors.danger;
-    final netIcon = net >= 0 ? Icons.trending_up : Icons.trending_down;
+    final netColor = cumulativeBalance >= 0 ? AppColors.success : AppColors.danger;
+    final netIcon = cumulativeBalance >= 0 ? Icons.trending_up : Icons.trending_down;
 
     return Column(
       children: [
@@ -82,11 +82,11 @@ class SummaryCards extends StatelessWidget {
             Expanded(
               child: _SummaryCard(
                 label: 'Saldo',
-                value: _formatCurrency(net),
+                value: _formatCurrency(cumulativeBalance),
                 valueColor: netColor,
                 icon: netIcon,
                 iconColor: netColor,
-                iconBgColor: net >= 0 ? const Color(0xFFDCFCE7) : const Color(0xFFFFE4E6),
+                iconBgColor: cumulativeBalance >= 0 ? const Color(0xFFDCFCE7) : const Color(0xFFFFE4E6),
                 theme: theme,
               ),
             ),

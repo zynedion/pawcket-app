@@ -7,6 +7,29 @@
 
 ---
 
+## 2026-06-04 — Feature 05: Transaction History & CSV Import Completed
+
+### What was built
+- **Comprehensive History UI:** Built `HistoryScreen` featuring debounced real-time search, select chips for type filters (All, Income, Expense), dropdown picker for category filtering, date range filter, and sorting toggles (Newest/Oldest).
+- **Edit Details Bottom Sheet:** Developed `EditTransactionSheet` to update transaction properties (amount, description, date, type, category, vendor, payment method) with inline validation. Invokes dashboard provider updates so changes instantly propagate.
+- **Swipe-to-Delete with Undo:** Integrated swipe left Dismissible with a confirmation dialog. Soft-deletes from DB and shows a 5-second SnackBar containing an "Undo" action to restore the record.
+- **Spreadsheet/CSV Import Wizard:** Implemented a multi-step wizard (`CsvImportScreen`):
+  - *Step 1: Input:* Upload `.csv`/`.tsv`/`.txt` files via `file_picker` or copy-paste spreadsheet text directly (bypassing mobile storage permission dialogs). Delimiters (, ; \t) are auto-detected.
+  - *Step 2: Column Mapping:* Match file columns to database columns, fully supporting separate income and expense columns as well as single amount columns.
+  - *Step 3: Category Mapping & Preview:* Globally matches file category strings to Pawcket categories, displays a list of parsed rows highlighting warning/errors, shows total counts, and batch-inserts the records in a single DB transaction block.
+- **CSV Parser Utility:** Created `CsvParser` with robust parsing logic for Indonesian and US formatting (e.g., `Rp 150.000`, `1,500.50`, `-Rp 5.000` auto-detected and parsed correctly).
+- **Bug Fix for Step 3 Layout:** Resolved a bottom overflow issue of 103px and locked scroll on Step 3 by configuring the `AnimatedSwitcher`'s `layoutBuilder` to use `StackFit.expand`. This allows height constraints to propagate correctly, letting `Expanded` size the `CustomScrollView` properly and keeping action buttons pinned at the bottom.
+- **Bug Fix for Onboarding Database Error:** Fixed a database crash (`UNIQUE constraint failed: users.device_id`) during onboarding when the database already contains a user record with the active `device_id`. In [local_db.dart](file:///c:/Users/fakhr/flutter%20projects/pawcket-prd/lib/services/database/local_db.dart), `createUser` now queries for an existing record, restores/reactivates it, and skips insertion if it exists. Additionally, `saveCategories` now uses `ConflictAlgorithm.ignore` to bypass conflicts on already-existing category names.
+- **Cumulative Running Balance Support:** Refactored the dashboard to calculate the cumulative running balance up to the end of the selected month (all-time income minus all-time expense from epoch to target month) via `getCumulativeBalance` query in [local_db.dart](file:///c:/Users/fakhr/flutter%20projects/pawcket-prd/lib/services/database/local_db.dart). Added `cumulativeBalance` property to `DashboardData` and `SummaryCards`, so that the "Saldo" card reflects the user's actual running cumulative net balance at any point in time. Rearranged the dashboard layout in [dashboard_screen.dart](file:///c:/Users/fakhr/flutter%20projects/pawcket-prd/lib/screens/dashboard/dashboard_screen.dart) to always show the SummaryCards at the top of the screen (even when the selected month is empty), leaving only the list and charts to show the empty state when there are no transactions.
+- **Unit Tests:** Created `csv_parser_test.dart` and `history_test.dart`, verifying that delimiter auto-detection, date/amount parsing, mapping logic, and state copies function correctly. All 32 unit tests now pass.
+
+### Decisions made
+- **Dual import options (File Picker & Copy-Paste):** Providing copy-paste alongside file selection ensures maximum compatibility across all operating systems without triggering painful runtime storage permission requests.
+- **Global category mapping during import:** Scanning the spreadsheet for unique category names and mapping them globally prevents users from editing categories row-by-row, delivering a premium UX.
+- **Expose db public getter in HistoryNotifier:** Renamed `_db` to `db` to allow screens to access database queries cleanly while preserving the centralized Riverpod structure.
+
+---
+
 ## 2026-06-04 — Income Tracking & Dashboard Enhancement
 
 ### What was built

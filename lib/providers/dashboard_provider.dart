@@ -41,6 +41,7 @@ class DashboardNotifier extends StateNotifier<DashboardData> {
 
       final monthStr = _formatMonthYear(state.selectedMonth);
       final summary = await _db.getMonthlySummary(user.userId!, monthStr);
+      final cumulativeBalance = await _db.getCumulativeBalance(user.userId!, monthStr);
       final breakdowns = await _db.getCategoryBreakdown(user.userId!, monthStr);
       final txList = await _db.getTransactionsForMonth(
         user.userId!, 
@@ -84,6 +85,7 @@ class DashboardNotifier extends StateNotifier<DashboardData> {
           totalExpense: summary['expense'] ?? 0,
           totalTransactions: summary['total_transactions'] ?? 0,
           net: (summary['income'] ?? 0) - (summary['expense'] ?? 0),
+          cumulativeBalance: cumulativeBalance,
           categoryBreakdown: mappedBreakdowns,
           recentTransactions: mappedTxs,
           isLoading: false,

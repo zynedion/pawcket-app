@@ -9,6 +9,7 @@ import '../../screens/onboarding/onboarding_screen.dart';
 import '../../services/database/local_db.dart';
 import '../../widgets/common/mr_oyen_avatar.dart';
 import '../chat/chat_screen.dart';
+import '../history/history_screen.dart';
 import '../../providers/dashboard_provider.dart';
 import 'widgets/summary_cards.dart';
 import 'widgets/expense_chart.dart';
@@ -26,7 +27,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final List<Widget> _tabs = [
     const _DashboardTab(),
     const ChatScreen(),
-    const _HistoryTab(),
+    const HistoryScreen(),
   ];
 
   @override
@@ -182,17 +183,18 @@ class _DashboardTab extends ConsumerWidget {
                       ),
                       const SizedBox(height: AppSpacing.space4),
 
+                      // Summary cards
+                      SummaryCards(
+                        totalIncome: dashboardState.totalIncome,
+                        totalExpense: dashboardState.totalExpense,
+                        totalTransactions: dashboardState.totalTransactions,
+                        cumulativeBalance: dashboardState.cumulativeBalance,
+                      ),
+                      const SizedBox(height: AppSpacing.space3),
+
                       if (dashboardState.recentTransactions.isEmpty) ...[
                         _buildEmptyState(context),
                       ] else ...[
-                        // Summary cards
-                        SummaryCards(
-                          totalIncome: dashboardState.totalIncome,
-                          totalExpense: dashboardState.totalExpense,
-                          totalTransactions: dashboardState.totalTransactions,
-                        ),
-                        const SizedBox(height: AppSpacing.space3),
-
                         // Pie chart breakdown
                         if (dashboardState.totalExpense > 0)
                           ExpenseChart(
@@ -320,166 +322,4 @@ class _DashboardTab extends ConsumerWidget {
   }
 }
 
-// ---------------------------------------------------------
-// Tab 3: History (Riwayat Transaksi)
-// ---------------------------------------------------------
-class _HistoryTab extends StatefulWidget {
-  const _HistoryTab();
-
-  @override
-  State<_HistoryTab> createState() => _HistoryTabState();
-}
-
-class _HistoryTabState extends State<_HistoryTab> {
-  Future<List<Map<String, dynamic>>>? _historyFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHistory();
-  }
-
-  void _loadHistory() {
-    setState(() {
-      _historyFuture = _fetchHistory();
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchHistory() async {
-    final db = LocalDb.instance;
-    final user = await db.getUser();
-    if (user == null) return [];
-    return await db.getRecentTransactions(user.userId!, limit: 100);
-  }
-
-  String _formatDate(int timestamp) {
-    final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    final day = date.day.toString().padLeft(2, '0');
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 
-      'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
-    ];
-    final month = months[date.month - 1];
-    final year = date.year;
-    return '$day $month $year';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      backgroundColor: AppColors.neutral50,
-      appBar: AppBar(
-        title: const Text(
-          'Riwayat Transaksi',
-          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _loadHistory,
-            tooltip: 'Segarkan',
-          )
-        ],
-      ),
-      body: SafeArea(
-        child: FutureBuilder<List<Map<String, dynamic>>>(
-          future: _historyFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'Terjadi kesalahan: ${snapshot.error}',
-                  style: const TextStyle(color: AppColors.danger),
-                ),
-              );
-            }
-
-            final txs = snapshot.data ?? [];
-            if (txs.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('😺', style: TextStyle(fontSize: 48)),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Belum ada transaksi tercatat.',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.neutral900),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Gunakan Mr. Oyen atau Widget untuk mencatat pengeluaran!',
-                      style: TextStyle(fontSize: 12, color: AppColors.neutral500),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-              child: ListView.builder(
-                itemCount: txs.length,
-                itemBuilder: (context, index) {
-                  final tx = txs[index];
-                  final amount = tx['amount_idr'] as int;
-                  final categoryName = tx['category_name'] as String;
-                  final colorHex = tx['color_hex'] as String?;
-                  final iconName = tx['icon_name'] as String?;
-                  final description = tx['description'] as String?;
-                  final timestamp = tx['transaction_date'] as int;
-                  final catColor = CategoryModel.getColor(colorHex);
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: AppSpacing.space2),
-                    child: ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(AppSpacing.space2),
-                        decoration: BoxDecoration(
-                          color: catColor.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          CategoryModel.getIconData(iconName),
-                          color: catColor,
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(
-                        description != null && description.isNotEmpty ? description : categoryName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.neutral900,
-                        ),
-                      ),
-                      subtitle: Text(
-                        _formatDate(timestamp),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      trailing: Text(
-                        'Rp ${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.danger,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
+// Tab 3 placeholder removed. New HistoryScreen linked directly.

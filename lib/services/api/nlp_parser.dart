@@ -18,7 +18,7 @@ class NLPParser {
     final systemPrompt = '''\
 You are a transaction parser. User input is in Indonesian or English. Determine if the input is an EXPENSE or INCOME, then parse it strictly into JSON.
 
-Expense categories: food, transport, entertainment, utilities, healthcare, shopping, housing, other
+Expense categories: food, transport, entertainment, utilities, healthcare, shopping, housing, social, emergency_fund, debt, investment_out, other
 Income categories: salary, bonus, investment, gift, other_income
 
 Return JSON format:

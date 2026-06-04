@@ -2,6 +2,7 @@ class DashboardData {
   final int totalIncome;
   final int totalExpense;
   final int net;
+  final int cumulativeBalance;
   final int totalTransactions;
   final List<CategoryBreakdown> categoryBreakdown;
   final List<TransactionSummary> recentTransactions;
@@ -13,6 +14,7 @@ class DashboardData {
     required this.totalIncome,
     required this.totalExpense,
     required this.net,
+    required this.cumulativeBalance,
     required this.totalTransactions,
     required this.categoryBreakdown,
     required this.recentTransactions,
@@ -26,6 +28,7 @@ class DashboardData {
       totalIncome: 0,
       totalExpense: 0,
       net: 0,
+      cumulativeBalance: 0,
       totalTransactions: 0,
       categoryBreakdown: const [],
       recentTransactions: const [],
@@ -38,6 +41,7 @@ class DashboardData {
     int? totalIncome,
     int? totalExpense,
     int? net,
+    int? cumulativeBalance,
     int? totalTransactions,
     List<CategoryBreakdown>? categoryBreakdown,
     List<TransactionSummary>? recentTransactions,
@@ -49,6 +53,7 @@ class DashboardData {
       totalIncome: totalIncome ?? this.totalIncome,
       totalExpense: totalExpense ?? this.totalExpense,
       net: net ?? this.net,
+      cumulativeBalance: cumulativeBalance ?? this.cumulativeBalance,
       totalTransactions: totalTransactions ?? this.totalTransactions,
       categoryBreakdown: categoryBreakdown ?? this.categoryBreakdown,
       recentTransactions: recentTransactions ?? this.recentTransactions,

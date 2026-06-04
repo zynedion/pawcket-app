@@ -9,6 +9,10 @@ enum PredefinedCategory {
   healthcare('Healthcare', 'healthcare', 'health_and_safety', '#EC4899'),
   shopping('Shopping', 'shopping', 'shopping_bag', '#14B8A6'),
   housing('Housing', 'housing', 'home', '#78716C'),
+  social('Dana Sosial', 'social', 'volunteer_activism', '#F43F5E'),
+  emergencyFund('Dana Darurat', 'emergency_fund', 'savings', '#3B82F6'),
+  debt('Cicilan/Utang', 'debt', 'credit_card', '#EF4444'),
+  investmentOut('Investasi', 'investment_out', 'show_chart', '#0EA5E9'),
   other('Other', 'other', 'category', '#6B7280'),
 
   // === Income Categories ===
@@ -123,6 +127,14 @@ class CategoryModel {
         return Icons.home;
       case 'palette':
         return Icons.palette;
+      case 'volunteer_activism':
+        return Icons.volunteer_activism;
+      case 'savings':
+        return Icons.savings;
+      case 'credit_card':
+        return Icons.credit_card;
+      case 'show_chart':
+        return Icons.show_chart;
       // Income icons
       case 'account_balance_wallet':
         return Icons.account_balance_wallet;

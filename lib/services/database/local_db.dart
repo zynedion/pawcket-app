@@ -223,29 +223,36 @@ class LocalDb {
     );
     if (maps.isEmpty) return null;
     final user = UserModel.fromMap(maps.first);
-    // Silently seed income categories for existing users
-    await ensureIncomeCategoriesExist(user.userId!);
+    // Silently seed new income & expense categories for existing users
+    await ensureAdditionalCategoriesExist(user.userId!);
     return user;
   }
 
-  /// Inserts income categories if they don't exist yet (silent migration for existing users).
-  Future<void> ensureIncomeCategoriesExist(int userId) async {
+  /// Inserts additional categories if they don't exist yet (silent migration for existing users).
+  Future<void> ensureAdditionalCategoriesExist(int userId) async {
     final db = await database;
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    final incomeTypes = [
-      {'category_name': 'Gaji',           'category_type': 'salary',       'icon_name': 'account_balance_wallet', 'color_hex': '#10B981'},
-      {'category_name': 'Bonus',          'category_type': 'bonus',        'icon_name': 'star',                   'color_hex': '#059669'},
-      {'category_name': 'Investasi',      'category_type': 'investment',   'icon_name': 'trending_up',            'color_hex': '#0D9488'},
-      {'category_name': 'Hadiah',         'category_type': 'gift',         'icon_name': 'card_giftcard',          'color_hex': '#7C3AED'},
-      {'category_name': 'Pendapatan Lain','category_type': 'other_income', 'icon_name': 'attach_money',           'color_hex': '#16A34A'},
+    final additionalCategories = [
+      // Income
+      {'category_name': 'Gaji',           'category_type': 'salary',         'icon_name': 'account_balance_wallet', 'color_hex': '#10B981'},
+      {'category_name': 'Bonus',          'category_type': 'bonus',          'icon_name': 'star',                   'color_hex': '#059669'},
+      {'category_name': 'Investasi',      'category_type': 'investment',     'icon_name': 'trending_up',            'color_hex': '#0D9488'},
+      {'category_name': 'Hadiah',         'category_type': 'gift',           'icon_name': 'card_giftcard',          'color_hex': '#7C3AED'},
+      {'category_name': 'Pendapatan Lain','category_type': 'other_income',   'icon_name': 'attach_money',           'color_hex': '#16A34A'},
+      
+      // New Expenses
+      {'category_name': 'Dana Sosial',    'category_type': 'social',         'icon_name': 'volunteer_activism',     'color_hex': '#F43F5E'},
+      {'category_name': 'Dana Darurat',   'category_type': 'emergency_fund', 'icon_name': 'savings',                'color_hex': '#3B82F6'},
+      {'category_name': 'Cicilan/Utang',  'category_type': 'debt',           'icon_name': 'credit_card',            'color_hex': '#EF4444'},
+      {'category_name': 'Investasi',      'category_type': 'investment_out', 'icon_name': 'show_chart',             'color_hex': '#0EA5E9'},
     ];
 
-    for (final income in incomeTypes) {
+    for (final cat in additionalCategories) {
       final existing = await db.query(
         'categories',
         where: 'user_id = ? AND category_type = ? AND deleted_at IS NULL',
-        whereArgs: [userId, income['category_type']],
+        whereArgs: [userId, cat['category_type']],
         limit: 1,
       );
       if (existing.isEmpty) {
@@ -253,10 +260,10 @@ class LocalDb {
           'categories',
           {
             'user_id': userId,
-            'category_name': income['category_name'],
-            'category_type': income['category_type'],
-            'icon_name': income['icon_name'],
-            'color_hex': income['color_hex'],
+            'category_name': cat['category_name'],
+            'category_type': cat['category_type'],
+            'icon_name': cat['icon_name'],
+            'color_hex': cat['color_hex'],
             'is_default': 1,
             'created_at': now,
             'updated_at': now,
@@ -268,9 +275,65 @@ class LocalDb {
   }
 
   /// Creates a local user in the users table and seeds user_preferences.
+  /// If the user with the same device ID already exists, reuses that user.
   Future<UserModel> createUser(String deviceId) async {
     final db = await database;
     final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Check if user with this deviceId already exists
+    final List<Map<String, dynamic>> existing = await db.query(
+      'users',
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final user = UserModel.fromMap(existing.first);
+      
+      // Update user back to active and reset onboarding status
+      await db.update(
+        'users',
+        {
+          'has_completed_onboarding': 0,
+          'updated_at': now,
+          'deleted_at': null,
+        },
+        where: 'user_id = ?',
+        whereArgs: [user.userId],
+      );
+
+      // Ensure user preferences exist
+      final List<Map<String, dynamic>> prefs = await db.query(
+        'user_preferences',
+        where: 'user_id = ?',
+        whereArgs: [user.userId],
+        limit: 1,
+      );
+      if (prefs.isEmpty) {
+        await db.insert('user_preferences', {
+          'user_id': user.userId,
+          'currency_code': 'IDR',
+          'enable_voice_input': 1,
+          'enable_cloud_sync': 0,
+          'enable_notifications': 1,
+          'theme_mode': 'light',
+          'show_tutorial': 1,
+          'require_pin_unlock': 0,
+          'require_biometric': 0,
+          'created_at': now,
+          'updated_at': now,
+        });
+      }
+
+      return UserModel(
+        userId: user.userId,
+        deviceId: deviceId,
+        hasCompletedOnboarding: false,
+        createdAt: user.createdAt,
+        updatedAt: now,
+      );
+    }
 
     // 1. Insert User
     final userId = await db.insert('users', {
@@ -324,16 +387,20 @@ class LocalDb {
     final db = await database;
     final batch = db.batch();
     for (var cat in categories) {
-      batch.insert('categories', {
-        'user_id': userId,
-        'category_name': cat.categoryName,
-        'category_type': cat.categoryType,
-        'icon_name': cat.iconName,
-        'color_hex': cat.colorHex,
-        'is_default': cat.isDefault ? 1 : 0,
-        'created_at': cat.createdAt,
-        'updated_at': cat.updatedAt,
-      });
+      batch.insert(
+        'categories',
+        {
+          'user_id': userId,
+          'category_name': cat.categoryName,
+          'category_type': cat.categoryType,
+          'icon_name': cat.iconName,
+          'color_hex': cat.colorHex,
+          'is_default': cat.isDefault ? 1 : 0,
+          'created_at': cat.createdAt,
+          'updated_at': cat.updatedAt,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
     }
     await batch.commit(noResult: true);
   }
@@ -397,7 +464,7 @@ class LocalDb {
       WHERE user_id = ? 
         AND transaction_type = 'expense' 
         AND deleted_at IS NULL
-        AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch')) = strftime('%Y-%m', 'now')
+        AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch', 'localtime')) = strftime('%Y-%m', 'now', 'localtime')
     ''', [userId]);
     
     if (results.isEmpty || results.first['total'] == null) return 0;
@@ -452,7 +519,7 @@ class LocalDb {
       FROM transactions
       WHERE user_id = ? 
         AND deleted_at IS NULL
-        AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch')) = ?
+        AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch', 'localtime')) = ?
     ''', [userId, monthStr]);
 
     if (results.isEmpty) return {'income': 0, 'expense': 0, 'total_transactions': 0};
@@ -462,6 +529,23 @@ class LocalDb {
       'expense': row['total_expense'] as int? ?? 0,
       'total_transactions': row['total_transactions'] as int? ?? 0,
     };
+  }
+
+  /// Fetches cumulative balance (total income - total expense) for a user up to the end of a specific month (format: 'YYYY-MM').
+  Future<int> getCumulativeBalance(int userId, String monthStr) async {
+    final db = await database;
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT 
+        COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount_idr ELSE 0 END), 0) -
+        COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount_idr ELSE 0 END), 0) as balance
+      FROM transactions
+      WHERE user_id = ? 
+        AND deleted_at IS NULL
+        AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch', 'localtime')) <= ?
+    ''', [userId, monthStr]);
+
+    if (results.isEmpty || results.first['balance'] == null) return 0;
+    return results.first['balance'] as int;
   }
 
   /// Fetches category spending breakdown for a user for a specific month (format: 'YYYY-MM').
@@ -478,14 +562,14 @@ class LocalDb {
           SELECT COALESCE(SUM(amount_idr), 1) 
           FROM transactions 
           WHERE user_id = ? AND transaction_type = 'expense' AND deleted_at IS NULL 
-            AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch')) = ?
+            AND strftime('%Y-%m', datetime(transaction_date / 1000, 'unixepoch', 'localtime')) = ?
         ), 1) as percentage
       FROM transactions t
       JOIN categories c ON t.category_id = c.category_id
       WHERE t.user_id = ? 
         AND t.transaction_type = 'expense'
         AND t.deleted_at IS NULL
-        AND strftime('%Y-%m', datetime(t.transaction_date / 1000, 'unixepoch')) = ?
+        AND strftime('%Y-%m', datetime(t.transaction_date / 1000, 'unixepoch', 'localtime')) = ?
       GROUP BY c.category_id, c.category_name, c.color_hex, c.icon_name
       ORDER BY total_amount DESC
     ''', [userId, monthStr, userId, monthStr]);
@@ -515,9 +599,117 @@ class LocalDb {
       JOIN categories c ON t.category_id = c.category_id
       WHERE t.user_id = ? 
         AND t.deleted_at IS NULL
-        AND strftime('%Y-%m', datetime(t.transaction_date / 1000, 'unixepoch')) = ?
+        AND strftime('%Y-%m', datetime(t.transaction_date / 1000, 'unixepoch', 'localtime')) = ?
       ORDER BY t.transaction_date DESC
       LIMIT ? OFFSET ?
     ''', [userId, monthStr, limit, offset]);
+  }
+
+  /// Fetches transactions with flexible filters (search, type, category, date range, pagination).
+  Future<List<Map<String, dynamic>>> getTransactionsFiltered({
+    required int userId,
+    String? searchQuery,
+    String? transactionType,
+    int? categoryId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 20,
+    int offset = 0,
+    String sortBy = 'date_desc',
+  }) async {
+    final db = await database;
+    
+    var whereClause = 't.user_id = ? AND t.deleted_at IS NULL';
+    final List<dynamic> whereArgs = [userId];
+    
+    if (searchQuery != null && searchQuery.trim().isNotEmpty) {
+      whereClause += ' AND (LOWER(t.description) LIKE ? OR LOWER(t.vendor_name) LIKE ? OR LOWER(c.category_name) LIKE ?)';
+      final q = '%${searchQuery.trim().toLowerCase()}%';
+      whereArgs.addAll([q, q, q]);
+    }
+    
+    if (transactionType != null && transactionType != 'all') {
+      whereClause += ' AND t.transaction_type = ?';
+      whereArgs.add(transactionType);
+    }
+    
+    if (categoryId != null) {
+      whereClause += ' AND t.category_id = ?';
+      whereArgs.add(categoryId);
+    }
+    
+    if (startDate != null) {
+      whereClause += ' AND t.transaction_date >= ?';
+      whereArgs.add(startDate.millisecondsSinceEpoch);
+    }
+    
+    if (endDate != null) {
+      whereClause += ' AND t.transaction_date <= ?';
+      whereArgs.add(endDate.millisecondsSinceEpoch);
+    }
+    
+    final order = sortBy == 'date_asc' ? 'ASC' : 'DESC';
+    
+    return await db.rawQuery('''
+      SELECT t.*, c.category_name, c.color_hex, c.icon_name
+      FROM transactions t
+      JOIN categories c ON t.category_id = c.category_id
+      WHERE $whereClause
+      ORDER BY t.transaction_date $order, t.created_at $order
+      LIMIT ? OFFSET ?
+    ''', [...whereArgs, limit, offset]);
+  }
+
+  /// Updates a transaction's fields.
+  Future<int> updateTransaction(TransactionModel transaction) async {
+    final db = await database;
+    return await db.update(
+      'transactions',
+      transaction.toMap(),
+      where: 'transaction_id = ? AND user_id = ?',
+      whereArgs: [transaction.transactionId, transaction.userId],
+    );
+  }
+
+  /// Soft deletes a transaction.
+  Future<int> softDeleteTransaction(int transactionId, int userId) async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return await db.update(
+      'transactions',
+      {
+        'deleted_at': now,
+        'updated_at': now,
+      },
+      where: 'transaction_id = ? AND user_id = ?',
+      whereArgs: [transactionId, userId],
+    );
+  }
+
+  /// Restores a soft-deleted transaction.
+  Future<int> restoreTransaction(int transactionId, int userId) async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return await db.update(
+      'transactions',
+      {
+        'deleted_at': null,
+        'updated_at': now,
+      },
+      where: 'transaction_id = ? AND user_id = ?',
+      whereArgs: [transactionId, userId],
+    );
+  }
+
+  /// Bulk inserts transactions within a single SQL transaction.
+  Future<void> insertTransactionsBatch(List<TransactionModel> transactions) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final tx in transactions) {
+        batch.insert('transactions', tx.toMap());
+      }
+      await batch.commit(noResult: true);
+    });
   }
 }
